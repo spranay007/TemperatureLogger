@@ -1,0 +1,4 @@
+../Drivers/TMP100/tmp100.c:13:15:TMP100_CheckStatus	3
+../Drivers/TMP100/tmp100.c:32:15:TMP100_ReadTemperature	4
+../Drivers/TMP100/tmp100.c:55:15:TMP100_ReadTemperature_OneShot	9
+../Drivers/TMP100/tmp100.c:108:14:TMP100_ConvertRawTemp	4
