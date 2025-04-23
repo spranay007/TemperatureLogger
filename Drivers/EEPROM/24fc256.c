@@ -8,7 +8,7 @@
 #include "24fc256.h"
 #include "string.h"
 
-void EEPROM_Init(I2C_HandleTypeDef *hi2c, EEPROM_Handle *handle)
+HAL_StatusTypeDef EEPROM_Init(I2C_HandleTypeDef *hi2c, EEPROM_Handle *handle)
 {
     handle->status = EEPROM_CheckStatus(hi2c);
     handle->state = EEPROM_IDLE;
@@ -16,6 +16,10 @@ void EEPROM_Init(I2C_HandleTypeDef *hi2c, EEPROM_Handle *handle)
     handle->read_ptr = EEPROM_DATA_START_ADDR;
     handle->used_size = 0;
     handle->has_wrapped = false;
+    if(EEPROM_RestoreMetadata(hi2c, handle) != HAL_OK){
+    	return HAL_ERROR;
+    }
+    return HAL_OK;
 }
 
 EEPROM_Status EEPROM_CheckStatus(I2C_HandleTypeDef *hi2c)
@@ -30,31 +34,32 @@ bool EEPROM_IsBusy(EEPROM_Handle *handle)
     return (handle->state == EEPROM_BUSY);
 }
 
-HAL_StatusTypeDef EEPROM_RestoreWritePointer(I2C_HandleTypeDef *hi2c, EEPROM_Handle *handle)
+HAL_StatusTypeDef EEPROM_RestoreMetadata(I2C_HandleTypeDef *hi2c, EEPROM_Handle *handle)
 {
-    uint8_t ptr_bytes[2];
-    if (HAL_I2C_Mem_Read(hi2c, EEPROM_I2C_ADDR, EEPROM_PTR_META_ADDR, I2C_MEMADD_SIZE_16BIT, ptr_bytes, 2, HAL_MAX_DELAY) == HAL_OK)
-    {
-        uint16_t restored = (ptr_bytes[0] << 8) | ptr_bytes[1];
-        if (restored >= EEPROM_DATA_START_ADDR && restored < EEPROM_TOTAL_SIZE)
-            handle->write_ptr = restored;
-        else
-            handle->write_ptr = EEPROM_DATA_START_ADDR;
-    }
-    else
-    {
-        handle->write_ptr = EEPROM_DATA_START_ADDR;
+    uint8_t meta[5]; //left one address willingly empty for future addition
+    if (HAL_I2C_Mem_Read(hi2c, EEPROM_I2C_ADDR, EEPROM_PTR_META_ADDR, I2C_MEMADD_SIZE_16BIT, meta, 5, HAL_MAX_DELAY) != HAL_OK)
         return HAL_ERROR;
-    }
+
+    handle->write_ptr = (meta[0] << 8) | meta[1];
+    handle->used_size = (meta[2] << 8) | meta[3];
+    handle->has_wrapped = (meta[4] != 0);
+
+    if (handle->write_ptr < EEPROM_DATA_START_ADDR || handle->write_ptr >= EEPROM_TOTAL_SIZE)
+        handle->write_ptr = EEPROM_DATA_START_ADDR;
+
     return HAL_OK;
 }
 
-void EEPROM_StoreWritePointer(I2C_HandleTypeDef *hi2c, uint16_t current_ptr)
+void EEPROM_StoreMetadata(I2C_HandleTypeDef *hi2c, EEPROM_Handle *handle)
 {
-    uint8_t ptr_bytes[2];
-    ptr_bytes[0] = (current_ptr >> 8) & 0xFF;
-    ptr_bytes[1] = current_ptr & 0xFF;
-    HAL_I2C_Mem_Write(hi2c, EEPROM_I2C_ADDR, EEPROM_PTR_META_ADDR, I2C_MEMADD_SIZE_16BIT, ptr_bytes, 2, HAL_MAX_DELAY);
+    uint8_t meta[5];
+    meta[0] = (handle->write_ptr >> 8);
+    meta[1] = (handle->write_ptr & 0xFF);
+    meta[2] = (handle->used_size >> 8);
+    meta[3] = (handle->used_size & 0xFF);
+    meta[4] = handle->has_wrapped ? 1 : 0;
+
+    HAL_I2C_Mem_Write(hi2c, EEPROM_I2C_ADDR, EEPROM_PTR_META_ADDR, I2C_MEMADD_SIZE_16BIT, meta, 5, HAL_MAX_DELAY);
     HAL_Delay(EEPROM_WRITE_CYCLE_TIME);
 }
 
@@ -89,7 +94,7 @@ void EEPROM_Erase(I2C_HandleTypeDef *hi2c, EEPROM_Handle *handle, uint16_t start
         handle->write_ptr = EEPROM_DATA_START_ADDR;
         handle->used_size = 0;
         handle->has_wrapped = false;
-        EEPROM_StoreWritePointer(hi2c, handle->write_ptr);
+        EEPROM_StoreMetadata(hi2c, handle);
     }
 
     handle->state = EEPROM_IDLE;
@@ -140,7 +145,7 @@ HAL_StatusTypeDef EEPROM_WriteBytes(I2C_HandleTypeDef *hi2c, EEPROM_Handle *hand
         size -= chunk_size;
     }
 
-    EEPROM_StoreWritePointer(hi2c, handle->write_ptr);
+    EEPROM_StoreMetadata(hi2c, handle);
     handle->state = EEPROM_IDLE;
     return HAL_OK;
 }

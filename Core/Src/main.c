@@ -102,9 +102,7 @@ int main(void)
   MX_I2C2_Init();
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
-  EEPROM_Init(&hi2c1, &eeprom_handle);
-
-  if((TMP100_CheckStatus(&hi2c2) == TMP_READY) && (EEPROM_RestoreWritePointer(&hi2c1, &eeprom_handle) == HAL_OK)){ //check if the TMP100 and also the restore eeprom pointer
+  if((TMP100_CheckStatus(&hi2c2) == TMP_READY) && (EEPROM_Init(&hi2c1, &eeprom_handle) == HAL_OK)){ //check if the TMP100 and also the restore eeprom pointer
 	  HAL_TIM_Base_Start_IT(&htim2);  // start timer with interrupt
   }
 

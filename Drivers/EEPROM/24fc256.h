@@ -17,8 +17,8 @@
 #define EEPROM_TOTAL_SIZE            32768         // 32KB = 256Kb
 #define EEPROM_PAGE_SIZE             64            // Max bytes per page write
 #define EEPROM_WRITE_CYCLE_TIME      5             // ms delay after write
-#define EEPROM_PTR_META_ADDR         0x0000        // Reserve first 2 bytes for write pointer
-#define EEPROM_DATA_START_ADDR       0x0002        // Start writing data after pointer storage
+#define EEPROM_PTR_META_ADDR         0x0000        // Reserve first 5 bytes for reserved meta data
+#define EEPROM_DATA_START_ADDR       0x0005        // Start writing data after pointer storage
 #define EEPROM_MAX_ADDR              (EEPROM_TOTAL_SIZE - 1)
 #define EEPROM_MAX_USABLE_SIZE       (EEPROM_TOTAL_SIZE - EEPROM_DATA_START_ADDR)
 
@@ -46,13 +46,13 @@ typedef struct {
 } EEPROM_Handle;
 
 //Initialization and state check functions
-void EEPROM_Init(I2C_HandleTypeDef *hi2c, EEPROM_Handle *handle);
+HAL_StatusTypeDef EEPROM_Init(I2C_HandleTypeDef *hi2c, EEPROM_Handle *handle);
 EEPROM_Status EEPROM_CheckStatus(I2C_HandleTypeDef *hi2c);
 bool EEPROM_IsBusy(EEPROM_Handle *handle);
 
 //Pointer Handling
-HAL_StatusTypeDef EEPROM_RestoreWritePointer(I2C_HandleTypeDef *hi2c, EEPROM_Handle *handle);
-void EEPROM_StoreWritePointer(I2C_HandleTypeDef *hi2c, uint16_t current_ptr);
+HAL_StatusTypeDef EEPROM_RestoreMetadata(I2C_HandleTypeDef *hi2c, EEPROM_Handle *handle);
+void EEPROM_StoreMetadata(I2C_HandleTypeDef *hi2c, EEPROM_Handle *handle);
 
 //Read/Write Operations
 HAL_StatusTypeDef EEPROM_WriteBytes(I2C_HandleTypeDef *hi2c, EEPROM_Handle *handle, uint8_t *data, uint16_t size);
