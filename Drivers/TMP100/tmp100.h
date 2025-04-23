@@ -28,7 +28,7 @@ typedef enum{
 #define TMP100_INVALID_TEMP				-1000.0f// Invalid temp return
 
 TMP100_STATUS TMP100_CheckStatus(I2C_HandleTypeDef *hi2c);
-static float TMP100_ConvertRawTemp(int16_t raw);
+
 TMP100_STATUS TMP100_ReadTemperature(I2C_HandleTypeDef *hi2c, float *readVal);
 TMP100_STATUS TMP100_ReadTemperature_OneShot(I2C_HandleTypeDef *hi2c, float *readVal);
 

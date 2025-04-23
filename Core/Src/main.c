@@ -51,7 +51,7 @@ TIM_HandleTypeDef htim2;
 
 /* USER CODE BEGIN PV */
 uint16_t second_counter = 0;
-uint16_t log_address = 0;
+EEPROM_Handle eeprom_handle;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -102,7 +102,9 @@ int main(void)
   MX_I2C2_Init();
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
-  if(TMP100_CheckStatus(&hi2c1) == TMP_READY){ //check if the TMP100 is ready or not
+  EEPROM_Init(&hi2c1, &eeprom_handle);
+
+  if((TMP100_CheckStatus(&hi2c2) == TMP_READY) && (EEPROM_RestoreWritePointer(&hi2c1, &eeprom_handle) == HAL_OK)){ //check if the TMP100 and also the restore eeprom pointer
 	  HAL_TIM_Base_Start_IT(&htim2);  // start timer with interrupt
   }
 
@@ -299,7 +301,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
       second_counter = 0;
 
       float temp = 0.0;
-      if(TMP100_ReadTemperature_OneShot(&hi2c1, &temp) == TMP_READY)
+      if(TMP100_ReadTemperature_OneShot(&hi2c2, &temp) == TMP_READY)
       {
 
     	  int16_t temp_fixed = (int16_t)(temp * 100);
@@ -307,8 +309,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     			  (uint8_t)(temp_fixed >> 8),
 				  (uint8_t)(temp_fixed & 0xFF)
     	  	  	  };
-    	  EEPROM_WriteBytes(&hi2c2, log_address, data, 2);
-    	  log_address += 2;
+    	  EEPROM_WriteBytes(&hi2c1,  &eeprom_handle, data, 2);
       }
       else{
     	  printf("TMP100 I2C Read Failed!\r\n");

@@ -6,6 +6,9 @@
  */
 #include "tmp100.h"
 
+/*Static function declaration
+ * */
+static float TMP100_ConvertRawTemp(int16_t raw);
 /*
  * check if the device is present or not on the i2c bus
  * */

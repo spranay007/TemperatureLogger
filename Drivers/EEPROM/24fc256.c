@@ -8,15 +8,151 @@
 #include "24fc256.h"
 #include "string.h"
 
-#define EEPROM_ADDR (0x50 << 1)
-
-void EEPROM_WriteBytes(I2C_HandleTypeDef *hi2c, uint16_t memAddr, uint8_t *data, uint16_t size)
+void EEPROM_Init(I2C_HandleTypeDef *hi2c, EEPROM_Handle *handle)
 {
-    uint8_t buffer[size + 2];
-    buffer[0] = (uint8_t)(memAddr >> 8);
-    buffer[1] = (uint8_t)(memAddr & 0xFF);
-    memcpy(&buffer[2], data, size);
+    handle->status = EEPROM_CheckStatus(hi2c);
+    handle->state = EEPROM_IDLE;
+    handle->write_ptr = EEPROM_DATA_START_ADDR;
+    handle->read_ptr = EEPROM_DATA_START_ADDR;
+}
 
-    HAL_I2C_Master_Transmit(hi2c, EEPROM_ADDR, buffer, size + 2, HAL_MAX_DELAY);
-    HAL_Delay(5);  // 5ms write time
+EEPROM_Status EEPROM_CheckStatus(I2C_HandleTypeDef *hi2c)
+{
+    if (HAL_I2C_IsDeviceReady(hi2c, EEPROM_I2C_ADDR, 3, 100) == HAL_OK)
+        return EEPROM_STATUS_PRESENT;
+    return EEPROM_STATUS_NOT_PRESENT;
+}
+
+bool EEPROM_IsBusy(EEPROM_Handle *handle)
+{
+    return (handle->state == EEPROM_BUSY);
+}
+
+HAL_StatusTypeDef EEPROM_RestoreWritePointer(I2C_HandleTypeDef *hi2c, EEPROM_Handle *handle)
+{
+    uint8_t ptr_bytes[2];
+    if (HAL_I2C_Mem_Read(hi2c, EEPROM_I2C_ADDR, EEPROM_PTR_META_ADDR, I2C_MEMADD_SIZE_16BIT, ptr_bytes, 2, HAL_MAX_DELAY) == HAL_OK)
+    {
+        uint16_t restored = (ptr_bytes[0] << 8) | ptr_bytes[1];
+        if (restored >= EEPROM_DATA_START_ADDR && restored < EEPROM_TOTAL_SIZE)
+            handle->write_ptr = restored;
+        else
+            handle->write_ptr = EEPROM_DATA_START_ADDR;
+    }
+    else
+    {
+        handle->write_ptr = EEPROM_DATA_START_ADDR;
+        return HAL_ERROR;
+    }
+    return HAL_OK;
+}
+
+void EEPROM_StoreWritePointer(I2C_HandleTypeDef *hi2c, uint16_t current_ptr)
+{
+    uint8_t ptr_bytes[2];
+    ptr_bytes[0] = (current_ptr >> 8) & 0xFF;
+    ptr_bytes[1] = current_ptr & 0xFF;
+    HAL_I2C_Mem_Write(hi2c, EEPROM_I2C_ADDR, EEPROM_PTR_META_ADDR, I2C_MEMADD_SIZE_16BIT, ptr_bytes, 2, HAL_MAX_DELAY);
+    HAL_Delay(EEPROM_WRITE_CYCLE_TIME);
+}
+
+void EEPROM_Erase(I2C_HandleTypeDef *hi2c, EEPROM_Handle *handle, uint16_t start_addr, uint16_t length)
+{
+    if (handle->status != EEPROM_STATUS_PRESENT || handle->state == EEPROM_BUSY)
+        return;
+
+    handle->state = EEPROM_BUSY;
+
+    uint8_t blank[EEPROM_PAGE_SIZE];
+    memset(blank, 0xFF, EEPROM_PAGE_SIZE);
+
+    uint16_t addr = start_addr;
+    while (length > 0)
+    {
+        uint16_t chunk = (length > EEPROM_PAGE_SIZE) ? EEPROM_PAGE_SIZE : length;
+
+        uint8_t buffer[chunk + 2];
+        buffer[0] = (addr >> 8) & 0xFF;
+        buffer[1] = addr & 0xFF;
+        memcpy(&buffer[2], blank, chunk);
+
+        HAL_I2C_Master_Transmit(hi2c, EEPROM_I2C_ADDR, buffer, chunk + 2, HAL_MAX_DELAY);
+        HAL_Delay(EEPROM_WRITE_CYCLE_TIME);
+
+        addr += chunk;
+        length -= chunk;
+    }
+
+    if (start_addr == EEPROM_DATA_START_ADDR) {
+        handle->write_ptr = EEPROM_DATA_START_ADDR;
+        EEPROM_StoreWritePointer(hi2c, handle->write_ptr);
+    }
+
+    handle->state = EEPROM_IDLE;
+}
+
+void EEPROM_EraseAll(I2C_HandleTypeDef *hi2c, EEPROM_Handle *handle)
+{
+    EEPROM_Erase(hi2c, handle, EEPROM_DATA_START_ADDR, EEPROM_TOTAL_SIZE - EEPROM_DATA_START_ADDR);
+}
+
+HAL_StatusTypeDef EEPROM_WriteBytes(I2C_HandleTypeDef *hi2c, EEPROM_Handle *handle, uint8_t *data, uint16_t size)
+{
+    if (handle->status != EEPROM_STATUS_PRESENT || handle->state == EEPROM_BUSY)
+        return HAL_ERROR;
+
+    handle->state = EEPROM_BUSY;
+
+    while (size > 0) {
+        uint16_t page_offset = handle->write_ptr % EEPROM_PAGE_SIZE;
+        uint16_t space_in_page = EEPROM_PAGE_SIZE - page_offset;
+        uint16_t chunk_size = (size < space_in_page) ? size : space_in_page;
+
+        uint8_t buffer[chunk_size + 2];
+        buffer[0] = (handle->write_ptr >> 8) & 0xFF;
+        buffer[1] = handle->write_ptr & 0xFF;
+        memcpy(&buffer[2], data, chunk_size);
+
+        if (HAL_I2C_Master_Transmit(hi2c, EEPROM_I2C_ADDR, buffer, chunk_size + 2, HAL_MAX_DELAY) != HAL_OK) {
+            handle->state = EEPROM_IDLE;
+            return HAL_ERROR;
+        }
+
+        HAL_Delay(EEPROM_WRITE_CYCLE_TIME);
+
+        handle->write_ptr += chunk_size;
+        data += chunk_size;
+        size -= chunk_size;
+    }
+
+    EEPROM_StoreWritePointer(hi2c, handle->write_ptr);
+    handle->state = EEPROM_IDLE;
+    return HAL_OK;
+}
+
+HAL_StatusTypeDef EEPROM_ReadBytes(I2C_HandleTypeDef *hi2c, EEPROM_Handle *handle, uint8_t *data, uint16_t size)
+{
+    if (handle->status != EEPROM_STATUS_PRESENT || handle->state == EEPROM_BUSY)
+        return HAL_ERROR;
+
+    handle->state = EEPROM_BUSY;
+
+    uint8_t addr_bytes[2] = {
+        (uint8_t)(handle->read_ptr >> 8),
+        (uint8_t)(handle->read_ptr & 0xFF)
+    };
+
+    if (HAL_I2C_Master_Transmit(hi2c, EEPROM_I2C_ADDR, addr_bytes, 2, HAL_MAX_DELAY) != HAL_OK) {
+        handle->state = EEPROM_IDLE;
+        return HAL_ERROR;
+    }
+
+    if (HAL_I2C_Master_Receive(hi2c, EEPROM_I2C_ADDR, data, size, HAL_MAX_DELAY) != HAL_OK) {
+        handle->state = EEPROM_IDLE;
+        return HAL_ERROR;
+    }
+
+    handle->read_ptr += size;
+    handle->state = EEPROM_IDLE;
+    return HAL_OK;
 }
