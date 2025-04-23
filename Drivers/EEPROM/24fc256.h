@@ -16,11 +16,11 @@
 #define EEPROM_I2C_ADDR              (0x50 << 1)   // 7-bit base address (0x50) shifted left
 #define EEPROM_TOTAL_SIZE            32768         // 32KB = 256Kb
 #define EEPROM_PAGE_SIZE             64            // Max bytes per page write
-#define EEPROM_WRITE_CYCLE_TIME      5             // ms delay after write
 #define EEPROM_PTR_META_ADDR         0x0000        // Reserve first 5 bytes for reserved meta data
 #define EEPROM_DATA_START_ADDR       0x0005        // Start writing data after pointer storage
 #define EEPROM_MAX_ADDR              (EEPROM_TOTAL_SIZE - 1)
 #define EEPROM_MAX_USABLE_SIZE       (EEPROM_TOTAL_SIZE - EEPROM_DATA_START_ADDR)
+#define EEPROM_ACK_TIMEOUT_MS 		100				// Usually it takes about 5ms for each cycle
 
 // EEPROM presence/status
 typedef enum {

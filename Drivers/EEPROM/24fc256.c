@@ -8,6 +8,34 @@
 #include "24fc256.h"
 #include "string.h"
 
+/* Static function defs
+ * */
+static HAL_StatusTypeDef EEPROM_WaitForWriteCompletion(I2C_HandleTypeDef *hi2c);
+
+/*
+ * @brief waits for write completion
+ * @param hi2c pointer to the I@C handle
+ * @retvat HAL_Status
+ *
+ * */
+static HAL_StatusTypeDef EEPROM_WaitForWriteCompletion(I2C_HandleTypeDef *hi2c)
+{
+    uint32_t startTick = HAL_GetTick();
+    while (HAL_I2C_IsDeviceReady(hi2c, EEPROM_I2C_ADDR, 1, 10) != HAL_OK)
+    {
+        if ((HAL_GetTick() - startTick) > EEPROM_ACK_TIMEOUT_MS)
+            return HAL_TIMEOUT;
+    }
+    return HAL_OK;
+}
+
+/*
+ * @brief Checks the EEPROM status and Initializes the EEPROM with meta data read from the reserved memory
+ * @param[1] hi2c pointer to the I2C handle
+ * @param[2] EEPROM handle
+ * @retval HAL_Status
+ *
+ * */
 HAL_StatusTypeDef EEPROM_Init(I2C_HandleTypeDef *hi2c, EEPROM_Handle *handle)
 {
     handle->status = EEPROM_CheckStatus(hi2c);
@@ -22,6 +50,12 @@ HAL_StatusTypeDef EEPROM_Init(I2C_HandleTypeDef *hi2c, EEPROM_Handle *handle)
     return HAL_OK;
 }
 
+/*
+ * @brief Checks the EEPROM Status if its present on the I2C bus or not
+ * @param hi2c pointer to the I2C handle
+ * @retval EEPROM Status
+ *
+ * */
 EEPROM_Status EEPROM_CheckStatus(I2C_HandleTypeDef *hi2c)
 {
     if (HAL_I2C_IsDeviceReady(hi2c, EEPROM_I2C_ADDR, 3, 100) == HAL_OK)
@@ -29,11 +63,24 @@ EEPROM_Status EEPROM_CheckStatus(I2C_HandleTypeDef *hi2c)
     return EEPROM_STATUS_NOT_PRESENT;
 }
 
+/*
+ * @brief checks the EEPROM status if its busy or not
+ * @param EEPROM Handle
+ * @retval weather the EEPROM is busy or in bool
+ *
+ * */
 bool EEPROM_IsBusy(EEPROM_Handle *handle)
 {
     return (handle->state == EEPROM_BUSY);
 }
 
+/*
+ * @brief Restores the meta data from the reserved memory
+ * @param[1] hi2c pointer to the I2C handle
+ * @param[2] EEPROM structure pointer
+ * @retval HAL_Status
+ *
+ * */
 HAL_StatusTypeDef EEPROM_RestoreMetadata(I2C_HandleTypeDef *hi2c, EEPROM_Handle *handle)
 {
     uint8_t meta[5]; //left one address willingly empty for future addition
@@ -50,6 +97,13 @@ HAL_StatusTypeDef EEPROM_RestoreMetadata(I2C_HandleTypeDef *hi2c, EEPROM_Handle 
     return HAL_OK;
 }
 
+/*
+ * @brief Stores the Meta data into the reserved memory after each read and write
+ * @param[1] hi2c pointer to the I2C handle
+ * @param[2] EEPROM structure pointer
+ * @retval void
+ *
+ * */
 void EEPROM_StoreMetadata(I2C_HandleTypeDef *hi2c, EEPROM_Handle *handle)
 {
     uint8_t meta[5];
@@ -60,9 +114,18 @@ void EEPROM_StoreMetadata(I2C_HandleTypeDef *hi2c, EEPROM_Handle *handle)
     meta[4] = handle->has_wrapped ? 1 : 0;
 
     HAL_I2C_Mem_Write(hi2c, EEPROM_I2C_ADDR, EEPROM_PTR_META_ADDR, I2C_MEMADD_SIZE_16BIT, meta, 5, HAL_MAX_DELAY);
-    HAL_Delay(EEPROM_WRITE_CYCLE_TIME);
+    EEPROM_WaitForWriteCompletion(hi2c);
 }
 
+/*
+ * @brief Erases the EEPROM to the length specified
+ * @param[1] hi2c pointer to the I2C handle
+ * @param[2] EEPROM structure pointer
+ * @param[3] Start address from there erase has to start
+ * @param[4] length of data to be erased
+ * @retval void
+ *
+ * */
 void EEPROM_Erase(I2C_HandleTypeDef *hi2c, EEPROM_Handle *handle, uint16_t start_addr, uint16_t length)
 {
     if (handle->status != EEPROM_STATUS_PRESENT || handle->state == EEPROM_BUSY)
@@ -84,7 +147,7 @@ void EEPROM_Erase(I2C_HandleTypeDef *hi2c, EEPROM_Handle *handle, uint16_t start
         memcpy(&buffer[2], blank, chunk);
 
         HAL_I2C_Master_Transmit(hi2c, EEPROM_I2C_ADDR, buffer, chunk + 2, HAL_MAX_DELAY);
-        HAL_Delay(EEPROM_WRITE_CYCLE_TIME);
+        EEPROM_WaitForWriteCompletion(hi2c);
 
         addr += chunk;
         length -= chunk;
@@ -100,11 +163,29 @@ void EEPROM_Erase(I2C_HandleTypeDef *hi2c, EEPROM_Handle *handle, uint16_t start
     handle->state = EEPROM_IDLE;
 }
 
+/*
+ * @brief Erases the EEPROM to the length specified
+ * @param[1] hi2c pointer to the I2C handle
+ * @param[2] EEPROM structure pointer
+ * @param[3] Start address from there erase has to start
+ * @param[4] length of data to be erased
+ * @retval void
+ *
+ * */
 void EEPROM_EraseAll(I2C_HandleTypeDef *hi2c, EEPROM_Handle *handle)
 {
     EEPROM_Erase(hi2c, handle, EEPROM_DATA_START_ADDR, EEPROM_TOTAL_SIZE - EEPROM_DATA_START_ADDR);
 }
 
+/*
+ * @brief Writes the number of Bytes passed
+ * @param[1] hi2c pointer to the I2C handle
+ * @param[2] EEPROM structure pointer
+ * @param[3] data to be written
+ * @param[4] size of data to be written
+ * @retval HAL_Status
+ *
+ * */
 HAL_StatusTypeDef EEPROM_WriteBytes(I2C_HandleTypeDef *hi2c, EEPROM_Handle *handle, uint8_t *data, uint16_t size)
 {
     if (handle->status != EEPROM_STATUS_PRESENT || handle->state == EEPROM_BUSY)
@@ -132,7 +213,10 @@ HAL_StatusTypeDef EEPROM_WriteBytes(I2C_HandleTypeDef *hi2c, EEPROM_Handle *hand
             return HAL_ERROR;
         }
 
-        HAL_Delay(EEPROM_WRITE_CYCLE_TIME);
+        if (EEPROM_WaitForWriteCompletion(hi2c) != HAL_OK) {
+                    handle->state = EEPROM_IDLE;
+                    return HAL_TIMEOUT;
+        }
 
         handle->write_ptr += chunk_size;
         handle->used_size += chunk_size;
