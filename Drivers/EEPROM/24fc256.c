@@ -238,8 +238,8 @@ HAL_StatusTypeDef EEPROM_WriteBytes(I2C_HandleTypeDef *hi2c, EEPROM_Handle *hand
  * @brief Reads the number of Bytes passed
  * @param[1] hi2c pointer to the I2C handle
  * @param[2] EEPROM structure pointer
- * @param[3] data to be written
- * @param[4] size of data to be written
+ * @param[3] data to be read
+ * @param[4] size of data to be read
  * @retval HAL_Status
  *
  * */
@@ -250,23 +250,48 @@ HAL_StatusTypeDef EEPROM_ReadBytes(I2C_HandleTypeDef *hi2c, EEPROM_Handle *handl
 
     handle->state = EEPROM_BUSY;
 
-    uint8_t addr_bytes[2] = {
-        (uint8_t)(handle->read_ptr >> 8),
-        (uint8_t)(handle->read_ptr & 0xFF)
-    };
+    uint16_t remaining = size;
+    uint8_t *ptr = data;
 
-    if (HAL_I2C_Master_Transmit(hi2c, EEPROM_I2C_ADDR, addr_bytes, 2, HAL_MAX_DELAY) != HAL_OK) {
+    // Calculate how much can be read
+    uint16_t available = handle->has_wrapped ? EEPROM_MAX_USABLE_SIZE : (handle->write_ptr - handle->read_ptr);
+
+    if (size > available) {
         handle->state = EEPROM_IDLE;
-        return HAL_ERROR;
+        return HAL_ERROR;  // Trying to read more than available
     }
 
-    if (HAL_I2C_Master_Receive(hi2c, EEPROM_I2C_ADDR, data, size, HAL_MAX_DELAY) != HAL_OK) {
-        handle->state = EEPROM_IDLE;
-        return HAL_ERROR;
+    while (remaining > 0) {
+        if (handle->read_ptr >= EEPROM_TOTAL_SIZE)
+            handle->read_ptr = EEPROM_DATA_START_ADDR;
+
+        uint16_t chunk = EEPROM_PAGE_SIZE;
+        uint16_t to_page_end = EEPROM_PAGE_SIZE - (handle->read_ptr % EEPROM_PAGE_SIZE);
+        if (remaining < chunk) chunk = remaining;
+        if (chunk > to_page_end) chunk = to_page_end;
+
+        uint8_t addr_bytes[2] = {
+            (uint8_t)(handle->read_ptr >> 8),
+            (uint8_t)(handle->read_ptr & 0xFF)
+        };
+
+        if (HAL_I2C_Master_Transmit(hi2c, EEPROM_I2C_ADDR, addr_bytes, 2, HAL_MAX_DELAY) != HAL_OK) {
+            handle->state = EEPROM_IDLE;
+            return HAL_ERROR;
+        }
+
+        if (HAL_I2C_Master_Receive(hi2c, EEPROM_I2C_ADDR, ptr, chunk, HAL_MAX_DELAY) != HAL_OK) {
+            handle->state = EEPROM_IDLE;
+            return HAL_ERROR;
+        }
+
+        handle->read_ptr += chunk;
+        ptr += chunk;
+        remaining -= chunk;
     }
 
-    handle->read_ptr += size;
     handle->state = EEPROM_IDLE;
     return HAL_OK;
 }
+
 

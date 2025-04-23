@@ -4,7 +4,7 @@
  *  Created on: Apr 20, 2025
  *      Author: spran
  */
-
+//Note: Please note that the WP (write protect pin is left floating and not pulled up otherwise we wont be able to write)
 #ifndef EEPROM_24FC256_H_
 #define EEPROM_24FC256_H_
 
