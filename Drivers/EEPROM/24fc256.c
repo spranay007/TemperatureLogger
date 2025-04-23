@@ -14,6 +14,8 @@ void EEPROM_Init(I2C_HandleTypeDef *hi2c, EEPROM_Handle *handle)
     handle->state = EEPROM_IDLE;
     handle->write_ptr = EEPROM_DATA_START_ADDR;
     handle->read_ptr = EEPROM_DATA_START_ADDR;
+    handle->used_size = 0;
+    handle->has_wrapped = false;
 }
 
 EEPROM_Status EEPROM_CheckStatus(I2C_HandleTypeDef *hi2c)
@@ -85,6 +87,8 @@ void EEPROM_Erase(I2C_HandleTypeDef *hi2c, EEPROM_Handle *handle, uint16_t start
 
     if (start_addr == EEPROM_DATA_START_ADDR) {
         handle->write_ptr = EEPROM_DATA_START_ADDR;
+        handle->used_size = 0;
+        handle->has_wrapped = false;
         EEPROM_StoreWritePointer(hi2c, handle->write_ptr);
     }
 
@@ -104,6 +108,11 @@ HAL_StatusTypeDef EEPROM_WriteBytes(I2C_HandleTypeDef *hi2c, EEPROM_Handle *hand
     handle->state = EEPROM_BUSY;
 
     while (size > 0) {
+        if (handle->write_ptr >= EEPROM_TOTAL_SIZE) {
+            handle->write_ptr = EEPROM_DATA_START_ADDR;
+            handle->has_wrapped = true;
+        }
+
         uint16_t page_offset = handle->write_ptr % EEPROM_PAGE_SIZE;
         uint16_t space_in_page = EEPROM_PAGE_SIZE - page_offset;
         uint16_t chunk_size = (size < space_in_page) ? size : space_in_page;
@@ -121,6 +130,12 @@ HAL_StatusTypeDef EEPROM_WriteBytes(I2C_HandleTypeDef *hi2c, EEPROM_Handle *hand
         HAL_Delay(EEPROM_WRITE_CYCLE_TIME);
 
         handle->write_ptr += chunk_size;
+        handle->used_size += chunk_size;
+        if (handle->used_size > EEPROM_MAX_USABLE_SIZE) {
+            handle->used_size = EEPROM_MAX_USABLE_SIZE;
+            handle->has_wrapped = true;
+        }
+
         data += chunk_size;
         size -= chunk_size;
     }
@@ -156,3 +171,4 @@ HAL_StatusTypeDef EEPROM_ReadBytes(I2C_HandleTypeDef *hi2c, EEPROM_Handle *handl
     handle->state = EEPROM_IDLE;
     return HAL_OK;
 }
+

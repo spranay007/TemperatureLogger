@@ -20,6 +20,7 @@
 #define EEPROM_PTR_META_ADDR         0x0000        // Reserve first 2 bytes for write pointer
 #define EEPROM_DATA_START_ADDR       0x0002        // Start writing data after pointer storage
 #define EEPROM_MAX_ADDR              (EEPROM_TOTAL_SIZE - 1)
+#define EEPROM_MAX_USABLE_SIZE       (EEPROM_TOTAL_SIZE - EEPROM_DATA_START_ADDR)
 
 // EEPROM presence/status
 typedef enum {
@@ -36,10 +37,12 @@ typedef enum {
 
 // EEPROM handle struct
 typedef struct {
-    EEPROM_Status status;
-    EEPROM_State  state;
-    uint16_t      write_ptr;
-    uint16_t      read_ptr;
+    EEPROM_Status status;         // Whether EEPROM is detected
+    EEPROM_State  state;          // Busy or idle
+    uint16_t      write_ptr;      // Current write pointer
+    uint16_t      read_ptr;       // Current read pointer
+    uint16_t      used_size;      // Total bytes written (up to max)
+    bool          has_wrapped;    // True if write pointer wrapped around
 } EEPROM_Handle;
 
 //Initialization and state check functions
