@@ -1,1 +1,10 @@
-../Drivers/EEPROM/24fc256.c:13:6:EEPROM_WriteBytes	64	dynamic
+../Drivers/EEPROM/24fc256.c:21:26:EEPROM_WaitForWriteCompletion	24	static
+../Drivers/EEPROM/24fc256.c:39:19:EEPROM_Init	16	static
+../Drivers/EEPROM/24fc256.c:59:15:EEPROM_CheckStatus	16	static
+../Drivers/EEPROM/24fc256.c:72:6:EEPROM_IsBusy	16	static
+../Drivers/EEPROM/24fc256.c:84:19:EEPROM_RestoreMetadata	40	static
+../Drivers/EEPROM/24fc256.c:107:6:EEPROM_StoreMetadata	40	static
+../Drivers/EEPROM/24fc256.c:129:6:EEPROM_Erase	136	dynamic
+../Drivers/EEPROM/24fc256.c:175:6:EEPROM_EraseAll	16	static
+../Drivers/EEPROM/24fc256.c:189:19:EEPROM_WriteBytes	72	dynamic
+../Drivers/EEPROM/24fc256.c:246:19:EEPROM_ReadBytes	40	static

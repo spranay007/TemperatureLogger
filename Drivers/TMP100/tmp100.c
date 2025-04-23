@@ -9,8 +9,11 @@
 /*Static function declaration
  * */
 static float TMP100_ConvertRawTemp(int16_t raw);
+
 /*
- * check if the device is present or not on the i2c bus
+ * @brief check if the device is present or not on the i2c bus
+ * @param hi2c pointer to the handle to I2C
+ * @retval TMP100 Status
  * */
 TMP100_STATUS TMP100_CheckStatus(I2C_HandleTypeDef *hi2c)
 {
@@ -28,7 +31,10 @@ TMP100_STATUS TMP100_CheckStatus(I2C_HandleTypeDef *hi2c)
 }
 
 /*
- * By default we are using the continues conversion mode and 12 bit resolution which is okay for the 10 min logging
+ *@brief By default we are using the continues conversion mode and 12 bit resolution which is okay for the 10 min logging
+ *@param[1] hi2c pointer to the handle to I2C
+ *@param[2] float readVal used to return the read value
+ *@retval TMP100 Status
  * */
 TMP100_STATUS TMP100_ReadTemperature(I2C_HandleTypeDef *hi2c, float *readVal)
 {
@@ -48,7 +54,10 @@ TMP100_STATUS TMP100_ReadTemperature(I2C_HandleTypeDef *hi2c, float *readVal)
 	return (*readVal == TMP100_INVALID_TEMP) ? TMP_ERROR : TMP_READY;
 }
 /*
- * Incase we need to save some power as the logging has to be done in 10 mins interval we can go the one shot approach and sleep rest of the period
+ *@brief Incase we need to save some power as the logging has to be done in 10 mins interval we can go the one shot approach and sleep rest of the period
+ *@param[1] hi2c pointer to the handle to I2C
+ *@param[2] float readVal used to return the read value
+ *@retval TMP100 Status
  * */
 TMP100_STATUS TMP100_ReadTemperature_OneShot(I2C_HandleTypeDef *hi2c, float *readVal)
 {
@@ -99,7 +108,9 @@ TMP100_STATUS TMP100_ReadTemperature_OneShot(I2C_HandleTypeDef *hi2c, float *rea
     return TMP_READY;
 }
 /*
- * Static function to calculate the temp value from raw values
+ *@brief Static function to calculate the temp value from raw values
+ *@param int16 raw value to be converted into float val
+ *@retval return the converted float value
  * */
 static float TMP100_ConvertRawTemp(int16_t raw){
 

@@ -234,6 +234,15 @@ HAL_StatusTypeDef EEPROM_WriteBytes(I2C_HandleTypeDef *hi2c, EEPROM_Handle *hand
     return HAL_OK;
 }
 
+/*
+ * @brief Reads the number of Bytes passed
+ * @param[1] hi2c pointer to the I2C handle
+ * @param[2] EEPROM structure pointer
+ * @param[3] data to be written
+ * @param[4] size of data to be written
+ * @retval HAL_Status
+ *
+ * */
 HAL_StatusTypeDef EEPROM_ReadBytes(I2C_HandleTypeDef *hi2c, EEPROM_Handle *handle, uint8_t *data, uint16_t size)
 {
     if (handle->status != EEPROM_STATUS_PRESENT || handle->state == EEPROM_BUSY)
