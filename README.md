@@ -4,7 +4,7 @@
 
 This project is a periodic temperature logging system built on the STM32F103C8T6 microcontroller. It reads temperature data from a **TMP100 temperature sensor** and logs it to a **24FC256 EEPROM** over I2C. The system is designed to operate autonomously with minimal power consumption using **one-shot temperature reads every 10 minutes**.
 
-## 🛠System Details
+## System Details
 
 - **Controller Used**: STM32F103C8T6  
 - **IDE Used**: STM32CubeIDE  
